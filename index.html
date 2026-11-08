@@ -22,7 +22,10 @@ const {html,render,useState,useEffect,useRef,useCallback}=htmPreact
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY)
 let AC=null,muted=localStorage.getItem('mute')==='1'
 const tone=(f,t,d,type='sine',v=.15)=>{if(muted)return;try{AC=AC||new (window.AudioContext||window.webkitAudioContext)();if(AC.state==='suspended')AC.resume();const o=AC.createOscillator(),g=AC.createGain(),T=AC.currentTime+t;o.type=type;o.frequency.value=f;g.gain.setValueAtTime(v,T);g.gain.exponentialRampToValueAtTime(.001,T+d);o.connect(g);g.connect(AC.destination);o.start(T);o.stop(T+d)}catch(e){}}
-const sfx={tap:()=>tone(660,0,.06,'triangle',.1),undo:()=>tone(440,0,.06,'triangle',.1),ok:()=>{tone(523,0,.12);tone(659,.1,.12);tone(784,.2,.2)},no:()=>{tone(220,0,.18,'sawtooth',.12);tone(180,.15,.25,'sawtooth',.12)},start:()=>[523,659,784,1046].forEach((f,i)=>tone(f,i*.1,.15,'square',.08)),win:()=>[523,659,784,659,784,1046].forEach((f,i)=>tone(f,i*.13,.22,'triangle',.15))}
+let spOK=false
+const unlockSpeech=()=>{if(spOK||!window.speechSynthesis)return;spOK=true;try{const u=new SpeechSynthesisUtterance(' ');u.volume=0;speechSynthesis.speak(u)}catch(e){}}
+const say=w=>{if(muted||!window.speechSynthesis)return;try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(w);u.lang='en-US';u.rate=.85;speechSynthesis.speak(u)}catch(e){}}
+const sfx={tap:()=>{unlockSpeech();tone(660,0,.06,'triangle',.1)},undo:()=>tone(440,0,.06,'triangle',.1),ok:()=>{tone(523,0,.12);tone(659,.1,.12);tone(784,.2,.2)},no:()=>{tone(220,0,.18,'sawtooth',.12);tone(180,.15,.25,'sawtooth',.12)},start:()=>[523,659,784,1046].forEach((f,i)=>tone(f,i*.1,.15,'square',.08)),win:()=>[523,659,784,659,784,1046].forEach((f,i)=>tone(f,i*.13,.22,'triangle',.15))}
 const SAMPLE=[
 ['Heritage','유산, 문화유산','Traditions, objects, and qualities passed down from previous generations.'],
 ['Ritual','의례, 의식','A traditional series of actions performed during a special event or ceremony.'],
@@ -97,7 +100,7 @@ function Host({code}){
 }
 function Join({code}){
   const [nick,setNick]=useState(''),[c,setC]=useState(code),[err,setErr]=useState('')
-  const go=async()=>{tone(600,0,.05,'sine',.02);const {data,error}=await sb.rpc('join_room',{p_code:c,p_nick:nick});if(error)return setErr(msg(error))
+  const go=async()=>{unlockSpeech();tone(600,0,.05,'sine',.02);const {data,error}=await sb.rpc('join_room',{p_code:c,p_nick:nick});if(error)return setErr(msg(error))
     localStorage.setItem('player:'+data.code,JSON.stringify(data));location.hash='#/play/'+data.code}
   return html`<div class="w"><h1>Join the race</h1><div class="card"><input placeholder="Nickname" maxlength="12" value=${nick} onInput=${e=>setNick(e.target.value)}/>
   <input placeholder="Room code" value=${c} onInput=${e=>setC(e.target.value.toUpperCase())}/><button onClick=${go} disabled=${!nick.trim()||!c}>JOIN GAME</button><div class="msg">${err}</div>
@@ -112,7 +115,7 @@ function Play({code}){
   const submit=useCallback(async()=>{if(busy.current||!q||q.idx==null)return;busy.current=true
     const ans=pick.map(i=>letters[i]).join(''),{data,error}=await sb.rpc('submit_answer',{p_token:me.token,p_idx:q.idx,p_ans:ans})
     if(error)setFb('Connection problem. Try again.')
-    else if(data.ok){sfx.ok();setFb('Correct! Great job! ✅');setTimeout(()=>{setFb('');busy.current=false;fetchQ()},700);return}
+    else if(data.ok){sfx.ok();say(ans);setFb('Correct! Great job! ✅ '+ans);setTimeout(()=>{setFb('');busy.current=false;fetchQ()},700);return}
     else{sfx.no();setFb('Not quite! Try again!');setShake(true);setTimeout(()=>setShake(false),300)}
     busy.current=false},[pick,q])
   useEffect(()=>{const h=e=>{if(e.key==='Enter')return submit()
