@@ -27,15 +27,16 @@ const unlockSpeech=()=>{if(spOK||!window.speechSynthesis)return;spOK=true;try{co
 const say=w=>{if(muted||!window.speechSynthesis)return;try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(w);u.lang='en-US';u.rate=.85;speechSynthesis.speak(u)}catch(e){}}
 const sfx={tap:()=>{unlockSpeech();tone(660,0,.06,'triangle',.1)},undo:()=>tone(440,0,.06,'triangle',.1),ok:()=>{tone(523,0,.12);tone(659,.1,.12);tone(784,.2,.2)},no:()=>{tone(220,0,.18,'sawtooth',.12);tone(180,.15,.25,'sawtooth',.12)},start:()=>[523,659,784,1046].forEach((f,i)=>tone(f,i*.1,.15,'square',.08)),win:()=>[523,659,784,659,784,1046].forEach((f,i)=>tone(f,i*.13,.22,'triangle',.15))}
 const SAMPLE=[
-['Heritage','유산, 문화유산','Traditions, objects, and qualities passed down from previous generations.',"Hanbok is an important part of Korea's cultural heritage."],
-['Ritual','의례, 의식','A traditional series of actions performed during a special event or ceremony.','The family performed a traditional ritual to honor their ancestors.'],
-['Cuisine','요리, 음식 문화','A particular style of cooking associated with a country or region.','Korean cuisine is famous for fermented foods like kimchi.'],
-['Etiquette','예절','The accepted rules of polite behavior in a particular society.','Bowing to elders is a basic rule of Korean etiquette.'],
-['Gesture','몸짓, 제스처','A movement of the body or hands used to communicate an idea or feeling.','A friendly gesture like a smile can break the ice.'],
-['Identity','정체성','The characteristics and beliefs that make a person or cultural group unique.',"Language is a strong part of a person's cultural identity."],
-['Preserve','보존하다','To protect something and keep it in its original or existing condition.','We should preserve old buildings for future generations.'],
-['Tradition','전통','A custom or belief passed down through generations.',"Eating tteokguk on New Year's Day is a Korean tradition."]].map(([word,ko,def,ex])=>({word,ko,def,ex}))
-const ERR={NICK_TAKEN:'That nickname is taken.',ROOM_NOT_FOUND:'Room not found.',ALREADY_STARTED:'Game already started.',NICK_EMPTY:'Enter a nickname.',NOT_HOST:'Not authorized.'}
+['impression','인상','An idea or opinion of what someone or something is like.','My first impression of the new teacher was very positive.'],
+['participant','참가자','A person who takes part in a particular activity.','Each participant received a certificate after the competition.'],
+['estimation','추정, 평가','A guess or calculation about the cost, size, value, etc. of something.','The estimation of the project’s cost was higher than expected.'],
+['pessimistic','비관적인','Thinking that bad things are more likely to happen.','She is pessimistic about the results of the test.'],
+['coin','새로운 용어를 만들어 내다','To invent a new word or expression.','The scientist coined a new term to describe the phenomenon.'],
+['perception','인식, 지각','A belief or opinion based on how things seem.','Our perception of the world can change through experience.'],
+['underestimate','과소평가하다','To think that something is less or lower than it really is.','Never underestimate the power of teamwork.'],
+['assumption','추정, 가정','Something that you accept as true without question or proof.','His decision was based on the assumption that everyone agreed.']
+].map(([word,ko,def,ex])=>({word,ko,def,ex}))
+const ERR={NICK_TAKEN:'That nickname is taken.',ROOM_NOT_FOUND:'Room not found.',ALREADY_STARTED:'Game already started.',NICK_EMPTY:'Enter a nickname.',NOT_HOST:'Not authorized.',INVALID_TRANSFER:'Invalid or expired transfer code.'}
 const msg=e=>{const k=Object.keys(ERR).find(k=>String(e&&e.message).includes(k));return k?ERR[k]:'Something went wrong. Try again.'}
 const fmt=ms=>{const s=ms/1000;return Math.floor(s/60)+':'+(s%60).toFixed(1).padStart(4,'0')}
 const sortRows=r=>[...r].sort((a,b)=>(a.finish_ms==null?1:0)-(b.finish_ms==null?1:0)||(a.finish_ms||0)-(b.finish_ms||0)||(a.finished_at||'').localeCompare(b.finished_at||'')||b.progress-a.progress||a.nick.localeCompare(b.nick))
@@ -69,19 +70,34 @@ function Podium({rows,total}){
 const hashCode=()=>(location.hash.split('/')[2]||'').toUpperCase()
 
 function Home(){
-  const [code,setCode]=useState('')
+  const [code,setCode]=useState(''),[hostCode,setHostCode]=useState(''),[transferCode,setTransferCode]=useState(''),[hostErr,setHostErr]=useState('')
+  const claimHost=async()=>{
+    setHostErr('')
+    const c=hostCode.trim().toUpperCase(),t=transferCode.trim().toUpperCase()
+    if(!c||!t)return setHostErr('Enter both the room code and transfer code.')
+    const {data,error}=await sb.rpc('claim_host_transfer',{p_code:c,p_transfer_code:t})
+    if(error)return setHostErr(msg(error))
+    localStorage.setItem('host:'+c,data)
+    location.hash='#/host/'+c
+  }
   return html`<div class="w"><h1>WORD SCRAMBLE RACE</h1><p>Unscramble the words. Beat the clock. Be the champion!</p>
   <div class="card"><b>Student</b><input placeholder="Room code" value=${code} onInput=${e=>setCode(e.target.value.toUpperCase())}/>
   <button disabled=${!code} onClick=${()=>{location.hash='#/join/'+code}}>JOIN</button></div>
   <div class="card"><b>Teacher</b><button class="g" onClick=${async()=>{
     const {data,error}=await sb.rpc('create_room',{p_words:SAMPLE});if(error)return alert(msg(error))
-    localStorage.setItem('host:'+data.code,data.host_key);location.hash='#/host/'+data.code}}>Create new room</button></div></div>`
+    localStorage.setItem('host:'+data.code,data.host_key);location.hash='#/host/'+data.code}}>Create new room</button>
+    <div style=${{borderTop:'1px solid #ffffff30',marginTop:14,paddingTop:14}}><b>Transfer host access to this device</b>
+    <input placeholder="Existing room code" maxlength="5" value=${hostCode} onInput=${e=>setHostCode(e.target.value.toUpperCase())}/>
+    <input placeholder="One-time transfer code" value=${transferCode} onInput=${e=>setTransferCode(e.target.value.toUpperCase())}/>
+    <button onClick=${claimHost} disabled=${!hostCode.trim()||!transferCode.trim()}>TAKE OVER EXISTING ROOM</button>
+    <div class="msg">${hostErr}</div></div>
+  </div></div>`
 }
 function Host({code}){
-  const key=localStorage.getItem('host:'+code),{st,rows,online}=useRoom(code),[words,setWords]=useState(SAMPLE),[note,setNote]=useState('')
+  const key=localStorage.getItem('host:'+code),{st,rows,online}=useRoom(code),[words,setWords]=useState(SAMPLE),[note,setNote]=useState(''),[transferCode,setTransferCode]=useState('')
   const url=location.origin+location.pathname+'#/join/'+code
   useEffect(()=>{sb.rpc('get_words',{p_code:code,p_key:key}).then(({data})=>data&&setWords(data))},[code])
-  const call=async(fn,extra)=>{const {error}=await sb.rpc(fn,Object.assign({p_code:code,p_key:key},extra||{}));setNote(error?msg(error):'')}
+  const call=async(fn,extra)=>{const {error}=await sb.rpc(fn,Object.assign({p_code:code,p_key:key},extra||{}));if(error&&String(error.message).includes('NOT_HOST')){localStorage.removeItem('host:'+code);setNote('Host access has been transferred to another device.')}else setNote(error?msg(error):'')}
   const upd=(i,k,v)=>setWords(w=>w.map((x,j)=>j===i?Object.assign({},x,{[k]:v}):x))
   const qr=useRef(null);useEffect(()=>{if(qr.current){const q=qrcode(0,'M');q.addData(url);q.make();qr.current.innerHTML=q.createSvgTag({cellSize:6,margin:3,scalable:true})}},[url,st&&st.status])
   if(!key)return html`<div class="w card">This browser is not the host of room ${code}.</div>`
@@ -90,6 +106,10 @@ function Host({code}){
   <div class="card" style=${{textAlign:'center'}}><div class="big">${code}</div><div ref=${qr} style=${{width:240,maxWidth:'100%',margin:'0 auto',background:'#fff',borderRadius:12,padding:6}}></div>
   <button class="g" onClick=${()=>navigator.clipboard.writeText(url).then(()=>setNote('Link copied'))}>Copy join link</button></div>
   <div class="card"><b>Players connected: ${rows.length}</b></div>
+  <div class="card"><b>Move host access to another computer</b><p>Generate a one-time code. Enter it with this room code on the new computer. The code expires in 10 minutes.</p>
+    <button class="g" onClick=${async()=>{const {data,error}=await sb.rpc('begin_host_transfer',{p_code:code,p_key:key});if(error){setNote(msg(error));return}setTransferCode(data);setNote('Transfer code created.')}}>GENERATE TRANSFER CODE</button>
+    ${transferCode&&html`<div class="big" style=${{fontSize:30,letterSpacing:4}}>${transferCode}</div><p>Use this code on the new computer. Once claimed, this browser will lose host access.</p>`}
+  </div>
   ${st&&st.status==='lobby'&&html`<div class="card"><b>Vocabulary (8)</b>${words.map((w,i)=>html`<div key=${i} class="row">
     <input placeholder="English" value=${w.word} onInput=${e=>upd(i,'word',e.target.value)}/><input placeholder="한국어" value=${w.ko} onInput=${e=>upd(i,'ko',e.target.value)}/>
     <input placeholder="English definition" value=${w.def} onInput=${e=>upd(i,'def',e.target.value)}/>
