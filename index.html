@@ -27,14 +27,14 @@ const unlockSpeech=()=>{if(spOK||!window.speechSynthesis)return;spOK=true;try{co
 const say=w=>{if(muted||!window.speechSynthesis)return;try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(w);u.lang='en-US';u.rate=.85;speechSynthesis.speak(u)}catch(e){}}
 const sfx={tap:()=>{unlockSpeech();tone(660,0,.06,'triangle',.1)},undo:()=>tone(440,0,.06,'triangle',.1),ok:()=>{tone(523,0,.12);tone(659,.1,.12);tone(784,.2,.2)},no:()=>{tone(220,0,.18,'sawtooth',.12);tone(180,.15,.25,'sawtooth',.12)},start:()=>[523,659,784,1046].forEach((f,i)=>tone(f,i*.1,.15,'square',.08)),win:()=>[523,659,784,659,784,1046].forEach((f,i)=>tone(f,i*.13,.22,'triangle',.15))}
 const SAMPLE=[
-['Heritage','유산, 문화유산','Traditions, objects, and qualities passed down from previous generations.'],
-['Ritual','의례, 의식','A traditional series of actions performed during a special event or ceremony.'],
-['Cuisine','요리, 음식 문화','A particular style of cooking associated with a country or region.'],
-['Etiquette','예절','The accepted rules of polite behavior in a particular society.'],
-['Gesture','몸짓, 제스처','A movement of the body or hands used to communicate an idea or feeling.'],
-['Identity','정체성','The characteristics and beliefs that make a person or cultural group unique.'],
-['Preserve','보존하다','To protect something and keep it in its original or existing condition.'],
-['Tradition','전통','A custom or belief passed down through generations.']].map(([word,ko,def])=>({word,ko,def}))
+['Heritage','유산, 문화유산','Traditions, objects, and qualities passed down from previous generations.',"Hanbok is an important part of Korea's cultural heritage."],
+['Ritual','의례, 의식','A traditional series of actions performed during a special event or ceremony.','The family performed a traditional ritual to honor their ancestors.'],
+['Cuisine','요리, 음식 문화','A particular style of cooking associated with a country or region.','Korean cuisine is famous for fermented foods like kimchi.'],
+['Etiquette','예절','The accepted rules of polite behavior in a particular society.','Bowing to elders is a basic rule of Korean etiquette.'],
+['Gesture','몸짓, 제스처','A movement of the body or hands used to communicate an idea or feeling.','A friendly gesture like a smile can break the ice.'],
+['Identity','정체성','The characteristics and beliefs that make a person or cultural group unique.',"Language is a strong part of a person's cultural identity."],
+['Preserve','보존하다','To protect something and keep it in its original or existing condition.','We should preserve old buildings for future generations.'],
+['Tradition','전통','A custom or belief passed down through generations.',"Eating tteokguk on New Year's Day is a Korean tradition."]].map(([word,ko,def,ex])=>({word,ko,def,ex}))
 const ERR={NICK_TAKEN:'That nickname is taken.',ROOM_NOT_FOUND:'Room not found.',ALREADY_STARTED:'Game already started.',NICK_EMPTY:'Enter a nickname.',NOT_HOST:'Not authorized.'}
 const msg=e=>{const k=Object.keys(ERR).find(k=>String(e&&e.message).includes(k));return k?ERR[k]:'Something went wrong. Try again.'}
 const fmt=ms=>{const s=ms/1000;return Math.floor(s/60)+':'+(s%60).toFixed(1).padStart(4,'0')}
@@ -92,7 +92,8 @@ function Host({code}){
   <div class="card"><b>Players connected: ${rows.length}</b></div>
   ${st&&st.status==='lobby'&&html`<div class="card"><b>Vocabulary (8)</b>${words.map((w,i)=>html`<div key=${i} class="row">
     <input placeholder="English" value=${w.word} onInput=${e=>upd(i,'word',e.target.value)}/><input placeholder="한국어" value=${w.ko} onInput=${e=>upd(i,'ko',e.target.value)}/>
-    <input placeholder="English definition" value=${w.def} onInput=${e=>upd(i,'def',e.target.value)}/></div>`)}
+    <input placeholder="English definition" value=${w.def} onInput=${e=>upd(i,'def',e.target.value)}/>
+    <input style=${{flex:'1 1 100%',marginBottom:14}} placeholder="Example sentence containing the word (blanked automatically)" value=${w.ex||''} onInput=${e=>upd(i,'ex',e.target.value)}/></div>`)}
     <button class="g" onClick=${()=>words.some(w=>!w.word.trim()||!w.ko.trim()||!w.def.trim())?setNote('Fill all fields.'):call('update_words',{p_words:words}).then(()=>setNote('Saved'))}>Save words</button>
     <button disabled=${!rows.length} onClick=${()=>call('start_game')}>START GAME</button></div>`}
   ${st&&st.status==='playing'&&html`<button onClick=${()=>call('end_game')}>END GAME</button>`}
@@ -135,7 +136,7 @@ function Play({code}){
   const elapsed=q.started_at?now-new Date(q.started_at).getTime():0
   return html`<div class="w">${head}<div class="big">${fmt(Math.max(0,elapsed))}</div>
   <div class="bar"><i style=${{width:(q.idx/total*100)+'%'}}></i></div><p>Question ${q.idx+1}/${total}</p>
-  <div class="card"><div style=${{fontSize:24,fontWeight:800}}>${q.ko}</div><div>${q.def}</div></div>
+  <div class="card"><div style=${{fontSize:24,fontWeight:800}}>${q.ko}</div><div>${q.def}</div>${q.ex&&html`<div style=${{marginTop:8,fontStyle:'italic',color:'#ffd23f'}}>“${q.ex}”</div>`}</div>
   <div class=${'tiles '+(shake?'shake':'')}>${pick.map((i,k)=>html`<button key=${k} class="t slot" style=${{fontSize:fs}} onClick=${()=>{sfx.undo();setPick(p=>p.filter((_,j)=>j!==k))}}>${letters[i]}</button>`)}${!pick.length&&html`<span>Tap letters below</span>`}</div>
   <div class="tiles">${letters.map((l,i)=>html`<button key=${i} class=${'t'+(pick.includes(i)?' used':'')} style=${{fontSize:fs}} disabled=${pick.includes(i)} onClick=${()=>{sfx.tap();setPick(p=>[...p,i])}}>${l}</button>`)}</div>
   <div class="msg">${fb}</div><div class="row"><button class="g" onClick=${()=>{sfx.undo();setPick([])}}>Reset</button><button onClick=${submit} disabled=${pick.length!==letters.length}>Submit</button></div></div>`
